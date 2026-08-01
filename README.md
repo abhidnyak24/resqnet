@@ -64,7 +64,6 @@ ResQnet/
 ├── README.md
 ├── app/
 │   ├── main.dart        # Flutter app - UI, MQTT client, Firebase messaging, map view
-│   └── pubspec.yaml      # App dependencies
 └── pi/
     └── ...               # Sensor reading, crash-detection logic, SIM7600 control, MQTT publish
 ```
