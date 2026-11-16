@@ -19,8 +19,6 @@ A deployment indication independently triggers the emergency protocol, without w
 
 **Specified hardware:** ScanTool OBDLink SX connected to a Raspberry Pi 5.
 
-**Repository status:**
-
 ### 2. Secondary source: inertial motion detection
 
 An MPU-9255 measures acceleration and angular velocity to identify potential collision events.
