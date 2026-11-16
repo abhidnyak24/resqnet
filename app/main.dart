@@ -380,7 +380,7 @@ for (final z in steps) {
   void _navigateToCrash() async {
     if (crashLat == null || crashLon == null) return;
 final uri = Uri.parse(
-      "https:
+      "https://www.google.com/maps/dir/?api=1&destination=$crashLat,$crashLon",
     );
     await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
@@ -624,7 +624,7 @@ Icon(Icons.shield_outlined,
                     children: [
                       TileLayer(
                         urlTemplate:
-                            'https:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                         userAgentPackageName: 'com.example.resqnet',
                       ),
                       MarkerLayer(
