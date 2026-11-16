@@ -1,102 +1,134 @@
-# ResQnet: Crash Detection and Notification System
+# ResQNet
+### Triple-Source Accident Detection and Autonomous Emergency Response
 
-**Patent-pending** IoT system that automatically detects vehicle accidents and alerts emergency contacts within seconds - no human action required.
+ResQNet is a vehicle-safety research project designed to detect accidents and initiate emergency notifications without requiring action from the occupants.
 
-> Application No. 202521090608 (filed with the Government of India)
+Its complete architecture combines vehicle-network airbag signals, inertial motion sensing, and external traffic verification. This repository contains the motion-based RC-car prototype and Flutter companion-app source.
 
----
+**Indian patent application:** 202521090608.
 
-## The Problem
+## System Architecture
 
-- Over **1.5 lakh people** die every year in road accidents in India (Ministry of Road Transport and Highways), and roughly **40% of those deaths** occur due to delays in medical attention.
-- Globally, the WHO estimates **1.35 million deaths** per year from road crashes.
-- In many accidents, victims are unconscious, trapped, or otherwise unable to call for help - and every minute of delay lowers survival odds.
+The complete design uses a Triple-Source Intelligent Verification (TSIV) framework:
 
-ResQnet removes the dependency on the victim (or a bystander) to raise the alarm. The system detects the crash itself and dispatches help automatically.
+### 1. Primary source: airbag deployment monitoring
 
----
+An OBD-II/CAN interface monitors vehicle-specific messages indicating airbag deployment.
 
-## How It Works
+A deployment indication independently triggers the emergency protocol, without waiting for motion detection or traffic confirmation.
 
-```
-[MPU-9255 motion sensor] → [Raspberry Pi 5] → [SIM7600 G-H module] → Call / SMS / GPS
-                                   |
-                                   └──(MQTT)──→ [Flutter app] → Push notification + live map
-```
+**Specified hardware:** ScanTool OBDLink SX connected to a Raspberry Pi 5.
 
-1. An **MPU-9255** high-precision motion sensor continuously monitors the vehicle's acceleration and orientation.
-2. A **Raspberry Pi 5** processes this data in real time and identifies sudden impacts consistent with a crash.
-3. On detecting a significant impact, the Pi triggers a **SIM7600 G-H** communication module, which:
-   - Places a call to the registered emergency contact or the 112 helpline
-   - Sends an SMS with a live Google Maps link to the exact crash location
-   - Publishes the crash event over **MQTT**
-4. The companion **Flutter mobile app** subscribes to this MQTT topic and, via **Firebase Cloud Messaging**, immediately shows:
-   - The crash location on an interactive map
-   - Impact severity in G-values
-   - One-tap **Navigate to Crash** and **Call Emergency** actions
-   - Distance from the user's current location to the crash site
+**Repository status:** Integration pending.
 
-For demonstration, the full system is mounted on an RC car standing in for a real vehicle — bumping or crashing the car triggers the same emergency sequence a full-scale deployment would.
+### 2. Secondary source: inertial motion detection
 
----
+An MPU-9255 measures acceleration and angular velocity to identify potential collision events.
 
-## Tech Stack
+The complete specification describes:
+- Inertial sampling at least 1,000 Hz.
+- Acceleration-change criteria in the 4–8 g range.
+- Rotational changes exceeding 500°/s.
+- Filtering and trained crash/non-crash classifiers.
+- Configurable sensitivity that prioritizes minimizing missed accidents.
 
-| Layer | Technology |
+**Repository status:** Threshold-based motion detection is implemented. The current RC-car settings are 2.0 g and 200°/s; trained classifiers and verified 1,000 Hz acquisition are not implemented.
+
+### 3. Tertiary source: external traffic verification
+
+After detection, the intended system queries external traffic services once per minute for up to ten minutes over a 1 km² geofenced area around the event.
+
+The specification describes confirmation using:
+- At least a 60% reduction in average lane speed for three consecutive samples; or
+- Patterns suggestive of emergency-vehicle ingress.
+
+This evidence updates event confidence and notification metadata.
+
+**Repository status:** Traffic-service integration and confirmation logic are pending.
+
+“Satellite traffic verification” is the specification's terminology for this external traffic-data layer. The current code does not process satellite imagery.
+
+## Detection and Notification Sequence
+
+**Airbag OR motion detection initiates the emergency protocol. Traffic verification follows in parallel and must not delay the initial notification.**
+
+1. Detect an event from either vehicle-network signals or inertial motion.
+2. Capture the event timestamp, location and available impact measurements.
+3. Initiate emergency notifications.
+4. Monitor external traffic conditions during the verification window.
+5. Update confirmation and notification metadata as additional evidence arrives.
+
+## Emergency Communication
+
+The complete design specifies:
+- Locally synthesized voice messages containing location, event time and assessed severity.
+- Cellular voice calls with up to three attempts and callback detection.
+- SMS and data notifications.
+- Local caching and notification retries when connectivity returns.
+
+The current prototype implements SMS attempts, MQTT publishing and sequential dialing of configured contacts.
+
+**Dialing is implemented; synthesized speech, call-answer verification, callback detection and persistent retry queues are not yet implemented.**
+
+## Current Prototype
+
+The Raspberry Pi script:
+- Reads MPU-9255 acceleration and gyro measurements.
+- Applies impact, rotation and freefall-followed-by-impact rules.
+- Queries GPS through the SIM7600 G-H.
+- Publishes crash events over MQTT.
+- Attempts SMS notifications and calls configured contacts.
+
+The Flutter source provides:
+- MQTT event reception.
+- Crash reason, impact and severity display.
+- Location map and navigation.
+- Manual emergency-call action.
+- Broker-address and emergency-contact configuration.
+- Local notifications and Firebase integration scaffolding.
+
+The original demonstration uses an RC car. Its thresholds and behavior should not be treated as validated full-size vehicle performance.
+
+## Important Implementation Notes
+
+- The current main loop sleeps for 5 ms in addition to sensor and processing time.
+- GPS acquisition, SMS and dialing block that loop.
+- Severity is a demonstration heuristic, not a validated injury assessment.
+- The specification's configurable false-positive tolerance is a design policy, not a measured result.
+- The repository does not establish zero missed accidents, classifier accuracy, guaranteed notification latency or six-hour backup operation.
+- Vehicle-specific CAN messages must be validated before use.
+- External traffic-provider capabilities and access must be verified before integration.
+
+## Hardware and Software
+
+| Component | Purpose |
 |---|---|
-| Motion sensing | MPU-9255 (accelerometer/gyroscope) |
-| Edge compute | Raspberry Pi 5 |
-| Cellular comms | SIM7600 G-H (calls, SMS, GPS) |
-| Messaging | MQTT |
-| Push notifications | Firebase Cloud Messaging |
-| Mobile app | Flutter / Dart |
-| Maps | flutter_map, Geolocator |
-| Local storage | shared_preferences |
+| Raspberry Pi 5 | Onboard processing |
+| MPU-9255 | Inertial sensing |
+| SIM7600 G-H | Cellular communication and GPS |
+| ScanTool OBDLink SX | Intended vehicle-network interface |
+| Python | Prototype device software |
+| MQTT | Event transport and configuration |
+| Flutter / Dart | Companion application |
 
-*(Pi-side scripting language: Python)*
+## Repository Layout
 
----
+- `pi/resqnet_code.py` — sensor acquisition, detection and notifications.
+- `app/main.dart` — Flutter companion-app source.
 
-## Repo Structure
+The repository does not currently include a complete Flutter project, dependency lockfile, Firebase configuration or notification backend.
 
-```
-ResQnet/
-├── README.md
-├── app/
-│   ├── main.dart        # Flutter app - UI, MQTT client, Firebase messaging, map view
-└── pi/
-    └── ...               # Sensor reading, crash-detection logic, SIM7600 control, MQTT publish
-```
+## Development Priorities
 
----
-
-## App Features
-
-- **Live crash view** - auto-switches from an idle "all safe" screen to a full crash alert the moment an MQTT crash event arrives
-- **Interactive map** with a marker at the crash site and a recenter button
-- **Impact severity & G-force readout**
-- **One-tap Navigate** (opens Google Maps) and **one-tap Call Emergency**
-- **Configurable broker IP** - first-run setup dialog, persisted via `shared_preferences`
-- **Configurable emergency contacts** - sent to the Pi over MQTT from within the app
-- **Background push notifications** via Firebase, even when the app is closed
-
----
-
-## Future Scope
-
-- Direct **OBD-II** integration for real-vehicle deployment (beyond the RC car demo)
-- Automatic **airbag-deployment detection**
-- **AI-based severity prediction** from sensor data
-- Cloud-linked emergency network to auto-notify **nearby hospitals and police stations**
-
----
-
-## Status
-
-Working prototype, demonstrated on a scaled RC car model. Patent filed; not yet deployed in a production vehicle.
-
----
+1. Validate vehicle-specific CAN decoding and sensor acquisition.
+2. Separate continuous sensing from GPS and notification operations.
+3. Add durable event storage and delivery tracking.
+4. Integrate external traffic verification without delaying initial alerts.
+5. Implement and test speech synthesis, modem audio routing and call handling.
+6. Package the app and backend.
+7. Evaluate detection performance and validate backup power and secure updates.
 
 ## Author
 
-Abhidnya Kulkarni — *(abhidnya.k24@gmail.com)*
+Abhidnya Kulkarni  
+abhidnya.k24@gmail.com
