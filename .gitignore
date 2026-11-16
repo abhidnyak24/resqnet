@@ -27,3 +27,9 @@ doc/api/
 
 .flutter-plugins
 .flutter-plugins-dependencies
+
+# Python prototype and local contact configuration
+__pycache__/
+*.py[cod]
+.venv/
+resqnet_config.json

@@ -66,7 +66,7 @@ String crashReason = "";
   bool crashDetected = false;
 
   String crashSeverity = "unknown";
-  double crashImpactG = 0.0;
+  double? crashImpactG;
 final MapController _mapController = MapController();
   bool _navBtnPressed = false;
   bool _callBtnPressed = false;
@@ -85,6 +85,7 @@ LatLng? _myLatLng;
     _initNotifications();
     _requestNotifPermission();
     _loadIpAndConnect();
+    _initLocation();
 }
 
   Future<void> _loadIpAndConnect() async {
@@ -246,7 +247,7 @@ const InitializationSettings settings =
     await notif.initialize(settings);
 }
 
-  Future<void> showCrashNotification(String severity, double g) async {
+  Future<void> showCrashNotification(String severity, double? g) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'crash_channel',
       'Crash Alerts',
@@ -259,7 +260,7 @@ const NotificationDetails notifDetails =
 await notif.show(
       0,
       'CRASH DETECTED — $severity',
-      'Impact: ${g.toStringAsFixed(2)} g',
+      g == null ? 'Impact measurement unavailable' : 'Impact: ${g.toStringAsFixed(2)} g',
       notifDetails,
     );
 }
@@ -282,6 +283,7 @@ if (!svcEnabled) return;
 setState(() {
         _myLatLng = LatLng(pos.latitude, pos.longitude);
       });
+      _updateDistance();
 } catch (_) {
 }
   }
@@ -324,25 +326,37 @@ await client!.connect();
         final payload =
             MqttPublishPayload.bytesToStringAsString(msg.payload.message);
 
-        final data = jsonDecode(payload);
-        final double lat = (data["lat"] as num).toDouble();
-        final double lon = (data["lon"] as num).toDouble();
-        final String reason = data["reason"];
-
-       
- setState(() {
-          crashLat = data["lat"];
-          crashLon = data["lon"];
-          crashReason = data["reason"];
-          crashImpactG = (data["impact_g"] as num).toDouble();
-          crashSeverity = data["severity"]; 
-          crashDetected = true;
-        });
-        showCrashNotification(crashSeverity, crashImpactG);
-
-    
-    _updateDistance();
-        _smoothZoomToCrash();
+        try {
+          final data = jsonDecode(payload) as Map<String, dynamic>;
+          if (data['type'] != 'crash') return;
+          final lat = (data['lat'] as num?)?.toDouble();
+          final lon = (data['lon'] as num?)?.toDouble();
+          final hasLocation = lat != null && lon != null &&
+              lat.isFinite && lon.isFinite &&
+              lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+          final impact = (data['impact_g'] as num?)?.toDouble();
+          if (!mounted) return;
+          setState(() {
+            crashLat = hasLocation ? lat : null;
+            crashLon = hasLocation ? lon : null;
+            crashReason = data['reason'] as String? ?? 'motion';
+            crashImpactG = impact != null && impact.isFinite && impact >= 0
+                ? impact : null;
+            crashSeverity = data['severity'] as String? ?? 'unknown';
+            crashDetected = true;
+            _distanceKm = null;
+          });
+          showCrashNotification(crashSeverity, crashImpactG);
+          _updateDistance();
+          // The map must be mounted before its controller is moved.
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && crashLat != null && crashLon != null) {
+              _smoothZoomToCrash();
+            }
+          });
+        } catch (error) {
+          debugPrint('Ignoring malformed crash event: $error');
+        }
       });
 } catch (e) {
       setState(() => _connStatus = "Connect error");
@@ -553,7 +567,8 @@ Icon(Icons.shield_outlined,
 
   Widget _crashView() {
 
-    final crash = LatLng(crashLat!, crashLon!);
+    final crash = crashLat != null && crashLon != null
+        ? LatLng(crashLat!, crashLon!) : null;
     final distanceText =
         _distanceKm != null ? "${_distanceKm!.toStringAsFixed(1)} km away" : "—";
 
@@ -582,7 +597,7 @@ Icon(Icons.shield_outlined,
               ),
               const SizedBox(height: 4),
               Text(
-                "Severity: ${crashSeverity.toUpperCase()}",
+                "Severity estimate: ${crashSeverity.toUpperCase()}",
                 style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
@@ -591,7 +606,9 @@ Icon(Icons.shield_outlined,
                 ),
               ),
               Text(
-                "Impact: ${crashImpactG.toStringAsFixed(2)} g",
+                crashImpactG == null
+                    ? "Impact: unavailable"
+                    : "Impact: ${crashImpactG!.toStringAsFixed(2)} g",
                 style: const TextStyle(fontSize: 15),
               ),
               const SizedBox(height: 4),
@@ -613,7 +630,11 @@ Icon(Icons.shield_outlined,
           child: _card(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Stack(
+              child: crash == null
+                  ? const Center(
+                      child: Text('GPS unavailable. Crash alert received without a location.'),
+                    )
+                  : Stack(
                 children: [
                   FlutterMap(
                     mapController: _mapController,
@@ -675,7 +696,7 @@ Icon(Icons.shield_outlined,
                   onTapDown: (_) => setState(() => _navBtnPressed = true),
                   onTapCancel: () => setState(() => _navBtnPressed = false),
                   onTapUp: (_) => setState(() => _navBtnPressed = false),
-                  onTap: _navigateToCrash,
+                  onTap: crash == null ? null : _navigateToCrash,
                   child: AnimatedScale(
                     scale: _navBtnPressed ? 0.97 : 1.0,
                     duration: const Duration(milliseconds: 90),
@@ -694,11 +715,11 @@ Icon(Icons.shield_outlined,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: const [
+                        children: [
                           Icon(Icons.navigation, color: Colors.white),
                           SizedBox(width: 8),
                           Text(
-                            "Navigate to Crash",
+                            crash == null ? "Location unavailable" : "Navigate to Crash",
                             style: TextStyle(
                               color: Colors.white,
                               fontWeight: FontWeight.w700,
