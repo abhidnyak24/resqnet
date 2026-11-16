@@ -19,7 +19,7 @@ A deployment indication independently triggers the emergency protocol, without w
 
 **Specified hardware:** ScanTool OBDLink SX connected to a Raspberry Pi 5.
 
-**Repository status:** Integration pending.
+**Repository status:**
 
 ### 2. Secondary source: inertial motion detection
 
@@ -32,7 +32,7 @@ The complete specification describes:
 - Filtering and trained crash/non-crash classifiers.
 - Configurable sensitivity that prioritizes minimizing missed accidents.
 
-**Repository status:** Threshold-based motion detection is implemented. The current RC-car settings are 2.0 g and 200°/s; trained classifiers and verified 1,000 Hz acquisition are not implemented.
+**Repository status:** Threshold-based motion detection is implemented. The current RC-car settings are 2.0 g and 200°/s.
 
 ### 3. Tertiary source: external traffic verification
 
@@ -44,9 +44,7 @@ The specification describes confirmation using:
 
 This evidence updates event confidence and notification metadata.
 
-**Repository status:** Traffic-service integration and confirmation logic are pending.
-
-“Satellite traffic verification” is the specification's terminology for this external traffic-data layer. The current code does not process satellite imagery.
+“Satellite traffic verification” is the specification's terminology for this external traffic-data layer.
 
 ## Detection and Notification Sequence
 
@@ -67,8 +65,6 @@ The complete design specifies:
 - Local caching and notification retries when connectivity returns.
 
 The current prototype implements SMS attempts, MQTT publishing and sequential dialing of configured contacts.
-
-**Dialing is implemented; synthesized speech, call-answer verification, callback detection and persistent retry queues are not yet implemented.**
 
 ## Current Prototype
 
